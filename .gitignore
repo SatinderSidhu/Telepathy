@@ -1,5 +1,13 @@
 node_modules/
 dist/
+dist-ssr/
 .env
 uploads/
 *.log
+npm-debug.log*
+*.local
+
+# Editor directories and files
+.idea
+.DS_Store
+*.sw?
