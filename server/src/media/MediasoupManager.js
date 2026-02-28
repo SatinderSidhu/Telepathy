@@ -40,6 +40,7 @@ class MediasoupManager {
       peers: new Map(),
     };
     this.rooms.set(roomId, room);
+    console.log(`mediasoup: created room ${roomId} on worker pid ${worker.pid}`);
     return room;
   }
 
@@ -66,6 +67,8 @@ class MediasoupManager {
       }
     });
 
+    console.log(`mediasoup: created transport ${transport.id} for user ${userId} in room ${roomId}`);
+
     return {
       id: transport.id,
       iceParameters: transport.iceParameters,
@@ -85,6 +88,7 @@ class MediasoupManager {
     if (!transport) throw new Error('Transport not found');
 
     await transport.connect({ dtlsParameters });
+    console.log(`mediasoup: connected transport ${transportId} for user ${userId} in room ${roomId}`);
   }
 
   async produce(roomId, userId, transportId, kind, rtpParameters, appData = {}) {
@@ -105,6 +109,8 @@ class MediasoupManager {
 
     peer.producers.set(producer.id, producer);
 
+    console.log(`mediasoup: user ${userId} produced ${kind} producer ${producer.id} in room ${roomId}`);
+
     return { id: producer.id };
   }
 
@@ -119,6 +125,7 @@ class MediasoupManager {
     if (!transport) throw new Error('Transport not found');
 
     if (!room.router.canConsume({ producerId, rtpCapabilities: peer.rtpCapabilities })) {
+      console.log(`mediasoup: cannot consume producer ${producerId} for user ${userId} in room ${roomId}`);
       throw new Error('Cannot consume');
     }
 
@@ -139,6 +146,8 @@ class MediasoupManager {
 
     peer.consumers.set(consumer.id, consumer);
 
+    console.log(`mediasoup: created consumer ${consumer.id} for user ${userId} consuming producer ${producerId} in room ${roomId}`);
+
     return {
       id: consumer.id,
       producerId,
@@ -157,6 +166,7 @@ class MediasoupManager {
     const consumer = peer.consumers.get(consumerId);
     if (consumer) {
       await consumer.resume();
+      console.log(`mediasoup: resumed consumer ${consumerId} for user ${userId} in room ${roomId}`);
     }
   }
 
@@ -178,6 +188,7 @@ class MediasoupManager {
       });
     }
     room.peers.get(userId).rtpCapabilities = rtpCapabilities;
+    console.log(`mediasoup: set rtpCapabilities for user ${userId} in room ${roomId}`);
   }
 
   getProducers(roomId, excludeUserId) {
@@ -218,10 +229,13 @@ class MediasoupManager {
 
     room.peers.delete(userId);
 
+    console.log(`mediasoup: removed peer ${userId} from room ${roomId}`);
+
     // If room is empty, close the router and remove
     if (room.peers.size === 0) {
       room.router.close();
       this.rooms.delete(roomId);
+      console.log(`mediasoup: closed and removed empty room ${roomId}`);
     }
   }
 }

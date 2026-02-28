@@ -212,6 +212,9 @@ lsof -i :3001
 
 # Kill it
 kill $(lsof -ti:3001)
+
+# Or use npx kill-port (quickest)
+npx kill-port 3001
 ```
 
 Common port conflicts:
@@ -253,6 +256,109 @@ docker exec -it project-1-postgres-1 psql -U chatcall_user -d chatcall -c "SELEC
 # If tables exist from a previous run, rollback first
 cd server && npm run migrate:rollback && npm run migrate
 ```
+
+### No audio/video in call (one or both sides)
+
+1. **Browser blocked media access** — Click the camera/mic icon in the browser address bar and allow permissions
+2. **Wrong MEDIASOUP_ANNOUNCED_IP** — Must be your machine's LAN IP, not `127.0.0.1` or `0.0.0.0`:
+   ```bash
+   # macOS
+   ipconfig getifaddr en0
+   # Linux
+   hostname -I | awk '{print $1}'
+   ```
+   Update `server/.env` and restart the server.
+3. **Firewall blocking UDP** — mediasoup uses UDP ports 40000–49999. Ensure they're open.
+
+### Docker containers won't start
+
+```bash
+# Check what's running
+docker-compose ps
+
+# Check logs for a specific service
+docker-compose logs postgres
+docker-compose logs redis
+
+# Full restart (keeps data)
+docker-compose down && docker-compose up -d postgres redis
+
+# Nuclear option — restart and wipe all data
+docker-compose down -v && docker-compose up -d postgres redis
+# Then re-run migrations:
+cd server && npm run migrate
+```
+
+### "ECONNREFUSED" when server starts
+
+The server can't reach PostgreSQL or Redis. Check:
+1. Docker containers are running: `docker-compose ps`
+2. PostgreSQL port matches `server/.env`: default is `DB_PORT=5432`
+3. Redis port matches `server/.env`: default is `REDIS_PORT=6380` (not 6379)
+4. If you changed Docker ports in `docker-compose.yml`, update `.env` to match
+
+### Messages not delivering in real-time
+
+1. Check browser console for WebSocket errors
+2. Verify `VITE_SOCKET_URL` in `web/.env` points to the correct server IP and port (e.g., `http://192.168.68.73:3001`)
+3. Make sure you're not using `localhost` in `web/.env` if accessing from another machine
+4. Check that the server shows `Socket connected: <id>` in its logs when the client loads
+
+### "Module not found" or build errors
+
+```bash
+# Reinstall server dependencies
+cd server && rm -rf node_modules && npm install
+
+# Reinstall web dependencies
+cd web && rm -rf node_modules && npm install
+
+# If mediasoup-client is missing in web
+cd web && npm install mediasoup-client
+```
+
+### How to kill a process on a specific port
+
+```bash
+# Find what's using a port (replace 3001 with any port)
+lsof -i :3001
+
+# Kill it by port
+kill $(lsof -ti:3001)
+
+# Common ports you may need to free up:
+# 3001 — Node.js server
+# 5173 — Vite dev server
+# 5432 — PostgreSQL
+# 6380 — Redis (Docker)
+```
+
+### How to completely reset the database
+
+```bash
+# Option 1: Rollback and re-run migrations (keeps Docker volume)
+cd server && npm run migrate:rollback && npm run migrate
+
+# Option 2: Destroy the Docker volume and start fresh
+docker-compose down -v
+docker-compose up -d postgres redis
+cd server && npm run migrate
+```
+
+### LAN IP changed (e.g., after reconnecting to WiFi)
+
+Your machine's LAN IP can change. If the app stops working from other devices:
+1. Find your new IP: `ipconfig getifaddr en0` (macOS) or `hostname -I` (Linux)
+2. Update `server/.env` → `MEDIASOUP_ANNOUNCED_IP` and `TURN_SERVER_URL`
+3. Update `web/.env` → `VITE_API_URL` and `VITE_SOCKET_URL`
+4. Restart both the server and Vite dev server
+
+### Browser notifications not showing
+
+1. Click "Allow" when the browser asks for notification permission
+2. If you dismissed the prompt, go to browser settings → Site Settings → Notifications → Allow for `localhost:5173`
+3. macOS: System Settings → Notifications → make sure your browser has notifications enabled
+4. Notifications only fire when the message is from a different conversation than the one you're viewing
 
 ## 10. Development Workflow
 

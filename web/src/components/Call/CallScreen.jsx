@@ -23,121 +23,157 @@ export default function CallScreen({ conversation, conversationId, callType, isI
     const socket = getSocket();
     if (!socket || !roomId) return;
 
-    // 1. Get router RTP capabilities
-    const { rtpCapabilities } = await new Promise((resolve) => {
-      socket.emit('media:getRouterCapabilities', { conversationId: roomId }, resolve);
-    });
-
-    // 2. Create mediasoup Device
-    const device = new mediasoupClient.Device();
-    await device.load({ routerRtpCapabilities: rtpCapabilities });
-    deviceRef.current = device;
-
-    // 3. Tell server our RTP capabilities (await callback to ensure set before consuming)
-    await new Promise((resolve) => {
-      socket.emit('media:setRtpCapabilities', {
-        conversationId: roomId,
-        rtpCapabilities: device.rtpCapabilities,
-      }, resolve);
-    });
-
-    // 4. Create Send Transport
-    const sendTransportData = await new Promise((resolve) => {
-      socket.emit('media:createTransport', { conversationId: roomId }, resolve);
-    });
-    if (sendTransportData.error) throw new Error(sendTransportData.error);
-
-    const sendTransport = device.createSendTransport(sendTransportData);
-    sendTransport.on('connect', ({ dtlsParameters }, callback, errback) => {
-      socket.emit('media:connectTransport', {
-        conversationId: roomId,
-        transportId: sendTransport.id,
-        dtlsParameters,
-      }, (res) => {
-        if (res.error) errback(new Error(res.error));
-        else callback();
+    try {
+      console.log('[Call] initMediasoup: getting router capabilities for', roomId);
+      // 1. Get router RTP capabilities
+      const { rtpCapabilities } = await new Promise((resolve) => {
+        socket.emit('media:getRouterCapabilities', { conversationId: roomId }, resolve);
       });
-    });
-    sendTransport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
-      socket.emit('media:produce', {
-        conversationId: roomId,
-        transportId: sendTransport.id,
-        kind,
-        rtpParameters,
-        appData,
-      }, (res) => {
-        if (res.error) errback(new Error(res.error));
-        else callback({ id: res.id });
+      console.log('[Call] router rtpCapabilities received');
+
+      // 2. Create mediasoup Device
+      const device = new mediasoupClient.Device();
+      await device.load({ routerRtpCapabilities: rtpCapabilities });
+      deviceRef.current = device;
+      console.log('[Call] mediasoup Device loaded');
+
+      // 3. Tell server our RTP capabilities (await callback to ensure set before consuming)
+      await new Promise((resolve) => {
+        socket.emit('media:setRtpCapabilities', {
+          conversationId: roomId,
+          rtpCapabilities: device.rtpCapabilities,
+        }, resolve);
       });
-    });
-    sendTransportRef.current = sendTransport;
+      console.log('[Call] RTP capabilities sent to server');
 
-    // 5. Create Receive Transport
-    const recvTransportData = await new Promise((resolve) => {
-      socket.emit('media:createTransport', { conversationId: roomId }, resolve);
-    });
-    if (recvTransportData.error) throw new Error(recvTransportData.error);
-
-    const recvTransport = device.createRecvTransport(recvTransportData);
-    recvTransport.on('connect', ({ dtlsParameters }, callback, errback) => {
-      socket.emit('media:connectTransport', {
-        conversationId: roomId,
-        transportId: recvTransport.id,
-        dtlsParameters,
-      }, (res) => {
-        if (res.error) errback(new Error(res.error));
-        else callback();
+      // 4. Create Send Transport
+      const sendTransportData = await new Promise((resolve) => {
+        socket.emit('media:createTransport', { conversationId: roomId }, resolve);
       });
-    });
-    recvTransportRef.current = recvTransport;
+      if (sendTransportData.error) throw new Error(sendTransportData.error);
+      console.log('[Call] send transport data received');
 
-    // 6. Produce local media
-    await produceMedia(sendTransport);
+      const sendTransport = device.createSendTransport(sendTransportData);
+      sendTransport.on('connect', ({ dtlsParameters }, callback, errback) => {
+        socket.emit('media:connectTransport', {
+          conversationId: roomId,
+          transportId: sendTransport.id,
+          dtlsParameters,
+        }, (res) => {
+          if (res.error) errback(new Error(res.error));
+          else callback();
+        });
+      });
+      sendTransport.on('produce', ({ kind, rtpParameters, appData }, callback, errback) => {
+        socket.emit('media:produce', {
+          conversationId: roomId,
+          transportId: sendTransport.id,
+          kind,
+          rtpParameters,
+          appData,
+        }, (res) => {
+          if (res.error) errback(new Error(res.error));
+          else callback({ id: res.id });
+        });
+      });
+      sendTransportRef.current = sendTransport;
 
-    // 7. Consume existing producers from server
-    const existingProducers = await new Promise((resolve) => {
-      socket.emit('media:getProducers', { conversationId: roomId }, resolve);
-    });
-    for (const { producerId, userId } of existingProducers) {
-      await consumeProducer(recvTransport, producerId, userId);
+      // 5. Create Receive Transport
+      const recvTransportData = await new Promise((resolve) => {
+        socket.emit('media:createTransport', { conversationId: roomId }, resolve);
+      });
+      if (recvTransportData.error) throw new Error(recvTransportData.error);
+      console.log('[Call] recv transport data received');
+
+      const recvTransport = device.createRecvTransport(recvTransportData);
+      recvTransport.on('connect', ({ dtlsParameters }, callback, errback) => {
+        socket.emit('media:connectTransport', {
+          conversationId: roomId,
+          transportId: recvTransport.id,
+          dtlsParameters,
+        }, (res) => {
+          if (res.error) errback(new Error(res.error));
+          else callback();
+        });
+      });
+      recvTransportRef.current = recvTransport;
+
+      // 6. Produce local media
+      await produceMedia(sendTransport);
+      console.log('[Call] local media produced (if available)');
+
+      // 7. Consume existing producers from server
+      const existingProducers = await new Promise((resolve) => {
+        socket.emit('media:getProducers', { conversationId: roomId }, resolve);
+      });
+      console.log('[Call] existing producers from server:', existingProducers);
+      for (const { producerId, userId } of existingProducers) {
+        await consumeProducer(recvTransport, producerId, userId);
+      }
+
+      // 8. Consume any producers that arrived while we were setting up
+      for (const { producerId, userId } of pendingProducersRef.current) {
+        await consumeProducer(recvTransport, producerId, userId);
+      }
+      pendingProducersRef.current = [];
+
+      setCallStatus('connected');
+    } catch (err) {
+      console.error('[Call] initMediasoup error:', err);
+      setCallStatus('failed');
     }
-
-    // 8. Consume any producers that arrived while we were setting up
-    for (const { producerId, userId } of pendingProducersRef.current) {
-      await consumeProducer(recvTransport, producerId, userId);
-    }
-    pendingProducersRef.current = [];
-
-    setCallStatus('connected');
   }, [roomId, callType]);
 
   async function produceMedia(transport) {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: callType === 'video',
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: callType === 'video',
+      });
+    } catch (err) {
+      console.error('[Call] getUserMedia failed:', err);
+      setCallStatus('no-media-permission');
+      return;
+    }
+
     localStreamRef.current = stream;
     if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
+      try {
+        localVideoRef.current.srcObject = stream;
+      } catch (e) {
+        console.warn('[Call] could not set local video srcObject:', e);
+      }
     }
 
     const audioTrack = stream.getAudioTracks()[0];
     if (audioTrack) {
-      const producer = await transport.produce({ track: audioTrack });
-      producersRef.current.push(producer);
+      try {
+        const producer = await transport.produce({ track: audioTrack });
+        producersRef.current.push(producer);
+        console.log('[Call] audio producer created:', producer.id);
+      } catch (err) {
+        console.error('[Call] failed to produce audio track:', err);
+      }
     }
 
     if (callType === 'video') {
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
-        const producer = await transport.produce({ track: videoTrack });
-        producersRef.current.push(producer);
+        try {
+          const producer = await transport.produce({ track: videoTrack });
+          producersRef.current.push(producer);
+          console.log('[Call] video producer created:', producer.id);
+        } catch (err) {
+          console.error('[Call] failed to produce video track:', err);
+        }
       }
     }
   }
 
   async function consumeProducer(transport, producerId, userId) {
     const socket = getSocket();
+    console.log('[Call] attempting to consume producer', producerId, 'from user', userId);
     const consumerData = await new Promise((resolve) => {
       socket.emit('media:consume', {
         conversationId: roomId,
@@ -181,6 +217,7 @@ export default function CallScreen({ conversation, conversationId, callType, isI
     }
 
     socket.on('call:accepted', async () => {
+      console.log('[Call] call:accepted received');
       setCallStatus('connecting');
       await initMediasoup();
     });
@@ -205,6 +242,7 @@ export default function CallScreen({ conversation, conversationId, callType, isI
 
     // Queue producers that arrive before recvTransport is ready
     socket.on('media:newProducer', async ({ producerId, userId }) => {
+      console.log('[Call] media:newProducer event received:', producerId, userId);
       if (recvTransportRef.current) {
         await consumeProducer(recvTransportRef.current, producerId, userId);
       } else {
@@ -237,6 +275,7 @@ export default function CallScreen({ conversation, conversationId, callType, isI
       ?.filter((m) => m.id !== user.id)
       .map((m) => m.id) || [];
 
+    console.log('[Call] initiating call to', otherMembers);
     socket.emit('call:initiate', {
       conversationId: roomId,
       callType,
