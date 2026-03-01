@@ -36,6 +36,7 @@ export default function Register() {
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
             required
             minLength={3}
           />
@@ -44,6 +45,7 @@ export default function Register() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
             required
           />
           <input
@@ -51,6 +53,7 @@ export default function Register() {
             placeholder="Password (min 6 chars)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
             required
             minLength={6}
           />

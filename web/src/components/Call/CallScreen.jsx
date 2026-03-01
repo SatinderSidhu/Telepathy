@@ -5,7 +5,7 @@ import * as mediasoupClient from 'mediasoup-client';
 
 export default function CallScreen({ conversation, conversationId, callType, isIncoming, callerId, onEndCall }) {
   const { user } = useAuth();
-  const [callStatus, setCallStatus] = useState(isIncoming ? 'ringing' : 'calling');
+  const [callStatus, setCallStatus] = useState(isIncoming ? 'connecting' : 'calling');
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(callType === 'audio');
   const [remoteStreams, setRemoteStreams] = useState(new Map());
@@ -16,12 +16,20 @@ export default function CallScreen({ conversation, conversationId, callType, isI
   const recvTransportRef = useRef(null);
   const producersRef = useRef([]);
   const pendingProducersRef = useRef([]);
+  const initStartedRef = useRef(false);
 
   const roomId = conversationId;
 
   const initMediasoup = useCallback(async () => {
     const socket = getSocket();
     if (!socket || !roomId) return;
+
+    // Guard against React StrictMode double-execution
+    if (initStartedRef.current) {
+      console.log('[Call] initMediasoup already started, skipping duplicate');
+      return;
+    }
+    initStartedRef.current = true;
 
     try {
       console.log('[Call] initMediasoup: getting router capabilities for', roomId);
@@ -214,6 +222,9 @@ export default function CallScreen({ conversation, conversationId, callType, isI
 
     if (!isIncoming) {
       startCall();
+    } else {
+      // User already accepted from the incoming call overlay — emit accept and start mediasoup
+      acceptCall();
     }
 
     socket.on('call:accepted', async () => {
@@ -270,6 +281,7 @@ export default function CallScreen({ conversation, conversationId, callType, isI
   }, []);
 
   function startCall() {
+    if (initStartedRef.current) return;
     const socket = getSocket();
     const otherMembers = conversation?.members
       ?.filter((m) => m.id !== user.id)
@@ -284,6 +296,7 @@ export default function CallScreen({ conversation, conversationId, callType, isI
   }
 
   async function acceptCall() {
+    if (initStartedRef.current) return;
     setCallStatus('connecting');
     const socket = getSocket();
     socket.emit('call:accept', {
@@ -344,6 +357,7 @@ export default function CallScreen({ conversation, conversationId, callType, isI
       recvTransportRef.current.close();
       recvTransportRef.current = null;
     }
+    initStartedRef.current = false;
     setRemoteStreams(new Map());
   }
 

@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { getSocket } from '../../services/socket';
 import { useSocket } from '../../context/SocketContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function ChatList({ activeChat, onSelectChat, onNewChat }) {
+  const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -113,11 +115,11 @@ export default function ChatList({ activeChat, onSelectChat, onNewChat }) {
             className={`chat-item ${activeChat?.id === conv.id ? 'active' : ''}`}
             onClick={() => onSelectChat(conv)}
           >
-            <div className={`avatar ${isOnline(conv) ? 'online' : ''}`}>
-              {getAvatar(conv)}
+            <div className={`avatar ${isOnline(conv, user.id) ? 'online' : ''}`}>
+              {getAvatar(conv, user.id)}
             </div>
             <div className="chat-info">
-              <span className="chat-name">{getDisplayName(conv)}</span>
+              <span className="chat-name">{getDisplayName(conv, user.id)}</span>
               <span className="chat-preview">
                 {conv.lastMessage?.content || 'No messages yet'}
               </span>

@@ -115,6 +115,32 @@ body {
   text-align: center;
 }
 
+.success-msg {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid var(--success);
+  color: var(--success);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.remember-me input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 /* Chat Page Layout */
 .chat-page {
   display: flex;

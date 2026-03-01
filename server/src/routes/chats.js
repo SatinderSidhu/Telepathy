@@ -66,7 +66,11 @@ router.post('/conversations', async (req, res) => {
         .first();
 
       if (existing) {
-        return res.json(existing);
+        const members = await db('conversation_members')
+          .join('users', 'users.id', 'conversation_members.user_id')
+          .where('conversation_members.conversation_id', existing.id)
+          .select('users.id', 'users.username', 'users.avatar_url');
+        return res.json({ ...existing, members });
       }
     }
 

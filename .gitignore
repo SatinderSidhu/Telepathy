@@ -7,6 +7,10 @@ uploads/
 npm-debug.log*
 *.local
 
+# Playwright
+test-results/
+playwright-report/
+
 # Editor directories and files
 .idea
 .DS_Store
