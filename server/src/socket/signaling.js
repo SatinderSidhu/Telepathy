@@ -43,18 +43,19 @@ module.exports = function registerSignalingHandlers(io, socket) {
   socket.on('call:end', (data) => {
     const { conversationId } = data;
 
-    mediasoupManager.removePeer(conversationId, socket.userId);
-    socket.leave(`call:${conversationId}`);
+    // Notify others BEFORE leaving the room
+    socket.to(`call:${conversationId}`).emit('call:ended', {
+      userId: socket.userId,
+    });
 
+    // Also notify about peer leaving
     socket.to(`call:${conversationId}`).emit('call:peerLeft', {
       userId: socket.userId,
     });
 
-    // If room is now empty, notify
-    const remaining = mediasoupManager.getPeersInRoom(conversationId);
-    if (remaining.length === 0) {
-      io.to(`call:${conversationId}`).emit('call:ended', {});
-    }
+    // Now cleanup
+    mediasoupManager.removePeer(conversationId, socket.userId);
+    socket.leave(`call:${conversationId}`);
   });
 
   // --- mediasoup SFU signaling ---

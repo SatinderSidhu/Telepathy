@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { showMessageNotification, showCallNotification, isPageVisible } from '../utils/notifications';
 
 // Simple notification sound using Web Audio API (no external files needed)
 function playSound(type) {
@@ -43,42 +44,21 @@ export function useNotification() {
     }
   }, []);
 
-  const sendBrowserNotification = useCallback((title, body, onClick) => {
-    if (!('Notification' in window) || permissionRef.current !== 'granted') return;
-    if (document.hasFocus()) return; // Don't show if app is focused
+  const notifyMessage = useCallback((senderName, messageContent, conversationId) => {
+    playSound('message');
 
-    const notification = new Notification(title, {
-      body,
-      icon: '/vite.svg',
-      tag: title, // Prevent duplicate notifications
-    });
-
-    if (onClick) {
-      notification.onclick = () => {
-        window.focus();
-        onClick();
-        notification.close();
-      };
+    // Show notification only if page is not visible or not focused
+    if (!isPageVisible() || !document.hasFocus()) {
+      showMessageNotification(senderName, messageContent, conversationId);
     }
-
-    setTimeout(() => notification.close(), 5000);
   }, []);
 
-  const notifyMessage = useCallback((senderName, messageContent) => {
-    playSound('message');
-    sendBrowserNotification(
-      `New message from ${senderName}`,
-      messageContent
-    );
-  }, [sendBrowserNotification]);
-
-  const notifyCall = useCallback((callerName, callType) => {
+  const notifyCall = useCallback((callerName, callType, conversationId) => {
     playSound('call');
-    sendBrowserNotification(
-      `Incoming ${callType} call`,
-      `${callerName} is calling you`
-    );
-  }, [sendBrowserNotification]);
+
+    // Always show call notifications (even if page is visible)
+    showCallNotification(callerName, callType, conversationId);
+  }, []);
 
   return { notifyMessage, notifyCall, playSound };
 }

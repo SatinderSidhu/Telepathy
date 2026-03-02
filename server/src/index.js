@@ -1,7 +1,9 @@
 require('dotenv').config();
 
 const express = require('express');
-const http = require('http');
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const { Server } = require('socket.io');
@@ -20,11 +22,35 @@ const registerPresenceHandlers = require('./socket/presence');
 const registerSignalingHandlers = require('./socket/signaling');
 
 const app = express();
-const server = http.createServer(app);
+
+// HTTPS server with SSL certificates
+const httpsOptions = {
+  key: fs.readFileSync(path.join(__dirname, '../../ssl/key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, '../../ssl/cert.pem')),
+};
+const server = https.createServer(httpsOptions, app);
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || '*', credentials: true }));
+// Allow multiple origins for CORS (HTTP and HTTPS)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://localhost:5176',
+  'http://192.168.68.73:5176',
+  'https://192.168.68.73:5176',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // REST routes
@@ -40,7 +66,7 @@ app.get('/api/health', (req, res) => {
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || '*',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },

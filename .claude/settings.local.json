@@ -3,7 +3,12 @@
     "allow": [
       "Bash(docker-compose:*)",
       "Bash(lsof:*)",
-      "Bash(npx playwright test:*)"
+      "Bash(npx playwright test:*)",
+      "Bash(kill:*)",
+      "Bash(npx knex:*)",
+      "Bash(PGPASSWORD=changeme_in_production psql:*)",
+      "Bash(pkill:*)",
+      "Bash(xargs kill:*)"
     ]
   }
 }

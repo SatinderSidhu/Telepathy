@@ -27,7 +27,7 @@ export default function ChatPage() {
     // Incoming call notification
     socket.on('call:incoming', (data) => {
       setIncomingCall(data);
-      notifyCall(data.callerName, data.callType);
+      notifyCall(data.callerName, data.callType, data.conversationId);
       addToast(`Incoming ${data.callType} call from ${data.callerName}`, 'call', 10000);
     });
 
@@ -37,7 +37,7 @@ export default function ChatPage() {
 
       const isActiveChat = activeChatRef.current?.id === msg.conversation_id;
       if (!isActiveChat) {
-        notifyMessage(msg.sender_username, msg.content);
+        notifyMessage(msg.sender_username, msg.content, msg.conversation_id);
         addToast(`${msg.sender_username}: ${msg.content}`, 'message');
       }
     });

@@ -22,7 +22,25 @@ export default function CallScreen({ conversation, conversationId, callType, isI
 
   const initMediasoup = useCallback(async () => {
     const socket = getSocket();
-    if (!socket || !roomId) return;
+    console.log('[Call] initMediasoup called - socket:', socket?.connected ? 'CONNECTED ✅' : 'NOT CONNECTED ❌', 'roomId:', roomId);
+
+    if (!socket) {
+      console.error('[Call] ❌ No socket available!');
+      setCallStatus('failed');
+      return;
+    }
+
+    if (!socket.connected) {
+      console.error('[Call] ❌ Socket exists but not connected! Waiting for connection...');
+      setCallStatus('connecting');
+      return;
+    }
+
+    if (!roomId) {
+      console.error('[Call] ❌ No roomId!');
+      setCallStatus('failed');
+      return;
+    }
 
     // Guard against React StrictMode double-execution
     if (initStartedRef.current) {

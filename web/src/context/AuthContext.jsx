@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 import { connectSocket, disconnectSocket } from '../services/socket';
+import { requestNotificationPermission } from '../utils/notifications';
 
 const AuthContext = createContext(null);
 
@@ -15,6 +16,8 @@ export function AuthProvider({ children }) {
         .then(({ data }) => {
           setUser(data);
           connectSocket(token);
+          // Request notification permission for existing session
+          requestNotificationPermission();
         })
         .catch(() => {
           localStorage.removeItem('accessToken');
@@ -32,6 +35,8 @@ export function AuthProvider({ children }) {
     localStorage.setItem('refreshToken', data.refreshToken);
     setUser(data.user);
     connectSocket(data.accessToken);
+    // Request notification permission after login
+    requestNotificationPermission();
     return data.user;
   }
 
@@ -41,6 +46,8 @@ export function AuthProvider({ children }) {
     localStorage.setItem('refreshToken', data.refreshToken);
     setUser(data.user);
     connectSocket(data.accessToken);
+    // Request notification permission after registration
+    requestNotificationPermission();
     return data.user;
   }
 
