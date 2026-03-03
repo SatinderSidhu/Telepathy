@@ -58,8 +58,12 @@ export function AuthProvider({ children }) {
     disconnectSocket();
   }
 
+  function updateUser(updates) {
+    setUser(prevUser => ({ ...prevUser, ...updates }));
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
-import axios from 'axios';
+import api from '../../services/api';
 import './Profile.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://localhost:3001/api';
 
 function Profile({ onClose }) {
-  const { user, setUser } = useAuth();
+  const { user, updateUser } = useAuth();
   const { socket } = useSocket();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,26 +49,44 @@ function Profile({ onClose }) {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError('');
+    setLoading(true);
+    setError('');
+    setSuccess('');
 
+    try {
       const formData = new FormData();
       formData.append('avatar', avatarFile);
 
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/users/profile/avatar`, formData, {
+      console.log('Uploading avatar...');
+      const response = await api.post('/users/profile/avatar', formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      setUser({ ...user, avatar_url: response.data.avatar_url });
-      setSuccess('Avatar updated successfully');
-      setAvatarFile(null);
+      console.log('Avatar upload successful:', response);
+      console.log('Response data:', response.data);
+
+      // Update user state with new avatar
+      if (response.data && response.data.avatar_url) {
+        const newAvatarUrl = response.data.avatar_url;
+        console.log('New avatar URL:', newAvatarUrl);
+
+        updateUser({ avatar_url: newAvatarUrl });
+        setAvatarPreview(newAvatarUrl);
+        setAvatarFile(null);
+        setSuccess('Avatar updated successfully');
+      } else {
+        throw new Error('Invalid response format');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to upload avatar');
+      console.error('Avatar upload failed:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      setError(err.response?.data?.error || err.message || 'Failed to upload avatar');
     } finally {
       setLoading(false);
     }
@@ -86,14 +104,9 @@ function Profile({ onClose }) {
       setLoading(true);
       setError('');
 
-      const token = localStorage.getItem('token');
-      const response = await axios.patch(
-        `${API_URL}/users/profile`,
-        { username, status },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.patch('/users/profile', { username, status });
 
-      setUser(response.data);
+      updateUser(response.data);
       setSuccess('Profile updated successfully');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update profile');
@@ -124,12 +137,7 @@ function Profile({ onClose }) {
       setLoading(true);
       setError('');
 
-      const token = localStorage.getItem('token');
-      await axios.post(
-        `${API_URL}/users/profile/password`,
-        { currentPassword, newPassword },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.post('/users/profile/password', { currentPassword, newPassword });
 
       setSuccess('Password changed successfully');
       setCurrentPassword('');
@@ -159,7 +167,7 @@ function Profile({ onClose }) {
           <div className="avatar-upload">
             <div className="avatar-preview">
               {avatarPreview ? (
-                <img src={avatarPreview.startsWith('blob:') ? avatarPreview : `${API_URL.replace('/api', '')}${avatarPreview}`} alt="Avatar" />
+                <img src={avatarPreview.startsWith('blob:') ? avatarPreview : `https://localhost:3001${avatarPreview}`} alt="Avatar" />
               ) : (
                 <div className="avatar-placeholder">{user?.username?.charAt(0).toUpperCase()}</div>
               )}
