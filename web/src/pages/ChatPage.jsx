@@ -6,6 +6,7 @@ import { useToast } from '../components/Shared/Toast';
 import ChatList from '../components/Chat/ChatList';
 import MessageThread from '../components/Chat/MessageThread';
 import CallScreen from '../components/Call/CallScreen';
+import Profile from '../components/Profile/Profile';
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
@@ -14,6 +15,7 @@ export default function ChatPage() {
   const [activeChat, setActiveChat] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
   const activeChatRef = useRef(activeChat);
 
   useEffect(() => {
@@ -79,8 +81,15 @@ export default function ChatPage() {
     <div className="chat-page">
       <div className="sidebar">
         <div className="user-info">
-          <div className="avatar">{user.username[0].toUpperCase()}</div>
+          <div className="avatar" onClick={() => setShowProfile(true)} style={{ cursor: 'pointer' }} title="View Profile">
+            {user.avatar_url ? (
+              <img src={`https://localhost:3000${user.avatar_url}`} alt={user.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+            ) : (
+              user.username[0].toUpperCase()
+            )}
+          </div>
           <span>{user.username}</span>
+          <button onClick={() => setShowProfile(true)} className="btn-profile" title="Profile Settings">⚙️</button>
           <button onClick={logout} className="btn-logout">Logout</button>
         </div>
         <ChatList
@@ -120,6 +129,8 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+
+      {showProfile && <Profile onClose={() => setShowProfile(false)} />}
     </div>
   );
 }

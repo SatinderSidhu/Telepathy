@@ -53,6 +53,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Serve static files (avatars)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // REST routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -71,6 +74,9 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+// Pass io instance to routes that need it
+userRoutes.setIO(io);
 
 // Socket auth middleware
 io.use((socket, next) => {

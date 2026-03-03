@@ -139,9 +139,82 @@ router.get('/conversations/:id/messages', async (req, res) => {
     }
 
     const messages = await query;
-    res.json(messages.reverse());
+
+    // Filter out deleted messages for this user
+    const filtered = messages.filter(msg => {
+      // If deleted for everyone, hide from all users
+      if (msg.deleted_for_everyone) return false;
+
+      // If deleted for specific users, hide from those users
+      if (msg.deleted_for) {
+        try {
+          const deletedFor = typeof msg.deleted_for === 'string'
+            ? JSON.parse(msg.deleted_for)
+            : msg.deleted_for;
+          if (Array.isArray(deletedFor) && deletedFor.includes(req.user.id)) {
+            return false;
+          }
+        } catch (e) {
+          console.error('Error parsing deleted_for:', e);
+        }
+      }
+
+      return true;
+    });
+
+    res.json(filtered.reverse());
   } catch (err) {
     console.error('Get messages error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete message
+router.delete('/messages/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { deleteFor } = req.query; // 'me' or 'everyone'
+
+    // Check if message exists and user is the sender
+    const message = await db('messages').where({ id: messageId }).first();
+
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (deleteFor === 'everyone') {
+      // Only sender can delete for everyone
+      if (message.sender_id !== req.user.id) {
+        return res.status(403).json({ error: 'Only sender can delete for everyone' });
+      }
+
+      await db('messages')
+        .where({ id: messageId })
+        .update({
+          deleted_for_everyone: true,
+          updated_at: new Date()
+        });
+
+      res.json({ message: 'Message deleted for everyone', deleteFor: 'everyone' });
+    } else {
+      // Delete for me only
+      const deletedFor = message.deleted_for || [];
+
+      if (!deletedFor.includes(req.user.id)) {
+        deletedFor.push(req.user.id);
+
+        await db('messages')
+          .where({ id: messageId })
+          .update({
+            deleted_for: JSON.stringify(deletedFor),
+            updated_at: new Date()
+          });
+      }
+
+      res.json({ message: 'Message deleted for you', deleteFor: 'me' });
+    }
+  } catch (err) {
+    console.error('Delete message error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

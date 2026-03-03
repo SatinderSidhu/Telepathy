@@ -100,4 +100,87 @@ module.exports = function registerChatHandlers(io, socket) {
       console.error('Mark read error:', err);
     }
   });
+
+  // Delete message
+  socket.on('chat:deleteMessage', async (data) => {
+    try {
+      const { messageId, deleteFor, conversationId } = data;
+
+      const message = await db('messages').where({ id: messageId }).first();
+
+      if (!message) {
+        return socket.emit('error', { message: 'Message not found' });
+      }
+
+      if (deleteFor === 'everyone') {
+        // Only sender can delete for everyone
+        if (message.sender_id !== socket.userId) {
+          return socket.emit('error', { message: 'Only sender can delete for everyone' });
+        }
+
+        await db('messages')
+          .where({ id: messageId })
+          .update({
+            deleted_for_everyone: true,
+            updated_at: new Date()
+          });
+
+        // Notify all users in the conversation
+        io.to(conversationId).emit('chat:messageDeleted', {
+          messageId,
+          deleteFor: 'everyone',
+          conversationId
+        });
+      } else {
+        // Delete for me only
+        const deletedFor = message.deleted_for || [];
+        const deletedArray = typeof deletedFor === 'string'
+          ? JSON.parse(deletedFor)
+          : deletedFor;
+
+        if (!deletedArray.includes(socket.userId)) {
+          deletedArray.push(socket.userId);
+
+          await db('messages')
+            .where({ id: messageId })
+            .update({
+              deleted_for: JSON.stringify(deletedArray),
+              updated_at: new Date()
+            });
+        }
+
+        // Only notify the user who deleted it
+        socket.emit('chat:messageDeleted', {
+          messageId,
+          deleteFor: 'me',
+          conversationId
+        });
+      }
+    } catch (err) {
+      console.error('Delete message error:', err);
+      socket.emit('error', { message: 'Failed to delete message' });
+    }
+  });
+
+  // Profile update notification
+  socket.on('profile:updated', async (data) => {
+    try {
+      const { userId, avatar_url, username } = data;
+
+      // Notify all conversations where this user is a member
+      const conversations = await db('conversation_members')
+        .where({ user_id: userId })
+        .select('conversation_id');
+
+      conversations.forEach(conv => {
+        io.to(conv.conversation_id).emit('user:profileUpdated', {
+          userId,
+          avatar_url,
+          username
+        });
+      });
+    } catch (err) {
+      console.error('Profile update notification error:', err);
+    }
+  });
 };

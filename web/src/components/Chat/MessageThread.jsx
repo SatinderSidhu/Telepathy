@@ -8,6 +8,8 @@ export default function MessageThread({ conversation, onStartCall }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState([]);
+  const [hoveredMessage, setHoveredMessage] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -39,11 +41,21 @@ export default function MessageThread({ conversation, onStartCall }) {
       }
     });
 
+    socket.on('chat:messageDeleted', ({ messageId, deleteFor }) => {
+      if (deleteFor === 'everyone') {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      } else {
+        // For "delete for me", just remove from local state
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      }
+    });
+
     return () => {
       socket.emit('chat:leave', conversation.id);
       socket.off('chat:message');
       socket.off('chat:typing');
       socket.off('chat:stopTyping');
+      socket.off('chat:messageDeleted');
     };
   }, [conversation?.id]);
 
@@ -100,6 +112,27 @@ export default function MessageThread({ conversation, onStartCall }) {
     return other?.username || 'Unknown';
   }
 
+  async function handleDeleteMessage(messageId, deleteFor) {
+    try {
+      const socket = getSocket();
+      if (!socket) return;
+
+      socket.emit('chat:deleteMessage', {
+        messageId,
+        deleteFor,
+        conversationId: conversation.id
+      });
+
+      setDeleteModal(null);
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  }
+
+  function showDeleteModal(msg) {
+    setDeleteModal(msg);
+  }
+
   if (!conversation) {
     return (
       <div className="message-thread empty">
@@ -137,6 +170,8 @@ export default function MessageThread({ conversation, onStartCall }) {
           <div
             key={msg.id}
             className={`message ${msg.sender_id === user.id ? 'own' : 'other'}`}
+            onMouseEnter={() => setHoveredMessage(msg.id)}
+            onMouseLeave={() => setHoveredMessage(null)}
           >
             {msg.sender_id !== user.id && (
               <span className="sender-name">{msg.sender_username}</span>
@@ -146,6 +181,15 @@ export default function MessageThread({ conversation, onStartCall }) {
               <span className="message-time">
                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
+              {hoveredMessage === msg.id && (
+                <button
+                  className="delete-message-btn"
+                  onClick={() => showDeleteModal(msg)}
+                  title="Delete message"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -170,6 +214,37 @@ export default function MessageThread({ conversation, onStartCall }) {
         />
         <button type="submit" disabled={!newMessage.trim()}>Send</button>
       </form>
+
+      {deleteModal && (
+        <div className="delete-modal-overlay" onClick={() => setDeleteModal(null)}>
+          <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete Message</h3>
+            <p>Choose who you want to delete this message for:</p>
+            <div className="delete-modal-actions">
+              <button
+                className="btn-delete-me"
+                onClick={() => handleDeleteMessage(deleteModal.id, 'me')}
+              >
+                Delete for me
+              </button>
+              {deleteModal.sender_id === user.id && (
+                <button
+                  className="btn-delete-everyone"
+                  onClick={() => handleDeleteMessage(deleteModal.id, 'everyone')}
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button
+                className="btn-cancel"
+                onClick={() => setDeleteModal(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

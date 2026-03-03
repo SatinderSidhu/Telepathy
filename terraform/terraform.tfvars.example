@@ -1,0 +1,28 @@
+# ChatCall Terraform Configuration
+# Copy this file to terraform.tfvars and customize
+
+# AWS Region - Choose the one closest to your users
+# Options: us-east-1, us-west-2, eu-west-1, ap-southeast-1, etc.
+aws_region = "us-east-1"
+
+# Instance Name
+instance_name = "chatcall-server"
+
+# Instance Size/Price
+# micro_2_0    = $3.50/month  (512 MB RAM) - Too small
+# small_2_0    = $5/month     (1 GB RAM)   - Minimum
+# medium_2_0   = $10/month    (2 GB RAM)   - Recommended for testing ⭐
+# large_2_0    = $20/month    (4 GB RAM)   - Production
+# xlarge_2_0   = $40/month    (8 GB RAM)   - High traffic
+instance_bundle_id = "medium_2_0"
+
+# Environment
+environment = "production"
+
+# Your Domain (optional)
+# Leave empty "" if testing with IP only
+# Set to "chatcall.yourdomain.com" if you have a domain
+domain_name = ""
+
+# Enable automatic daily snapshots (backups)
+enable_automatic_snapshots = true
